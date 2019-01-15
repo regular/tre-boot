@@ -22,11 +22,13 @@
   "dependencies": {
     "mutant": "^3.22.1",
     "ssb-ref": "^2.13.9",
-    "tre-prototypes": "^1.6.0"
+    "tre-prototypes": "^1.6.0",
+    "tre-watch-heads": "^1.1.0"
   },
   "tre-init": {
     "plugins": {
-      "tre-boot": true  
+      "ssb-revisions": true,
+      "tre-boot": true
     },
     "post-init": "ln -s $(pwd) .tre/node_modules/tre-boot"
   }
