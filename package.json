@@ -26,7 +26,8 @@
   },
   "tre-init": {
     "plugins": {
-      ".": true  
-    }
+      "tre-boot": true  
+    },
+    "post-init": "ln -s $(pwd) .tre/node_modules/tre-boot"
   }
 }
