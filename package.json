@@ -10,7 +10,9 @@
     "type": "git",
     "url": "git+https://github.com/regular/tre-boot.git"
   },
-  "keywords": ["tre"],
+  "keywords": [
+    "tre"
+  ],
   "author": "Jan Bölsche <jan@lagomorph.de> (https://regular.codes/)",
   "license": "ISC",
   "bugs": {
@@ -18,10 +20,13 @@
   },
   "homepage": "https://github.com/regular/tre-boot#readme",
   "dependencies": {
-    "browserify": "^16.2.3",
     "mutant": "^3.22.1",
-    "tre-client": "^1.2.1",
-    "tre-prototypes": "^1.6.0",
-    "trumpet": "^1.7.2"
+    "ssb-ref": "^2.13.9",
+    "tre-prototypes": "^1.6.0"
+  },
+  "tre-init": {
+    "plugins": {
+      ".": true  
+    }
   }
 }
