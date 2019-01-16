@@ -2,14 +2,16 @@ const url = require('url')
 const fs = require('fs')
 const WatchMerged = require('tre-prototypes')
 const WatchHeads = require('tre-watch-heads')
+const Value = require('mutant/value')
 const watch = require('mutant/watch')
 const {isMsg} = require('ssb-ref')
+const debug = require('debug')('tre-boot')
 
 function awaitStable(ssb, bootKey, cb) {
   const watchMerged = WatchMerged(ssb)
   const watchHeads = WatchHeads(ssb)
 
-  console.log(`bootKey: "${bootKey}"`)
+  debug(`bootKey: "${bootKey}"`)
 
   // first let's find out if bootKey refers to a specific revision
   // or a revisionRoot.
@@ -18,25 +20,26 @@ function awaitStable(ssb, bootKey, cb) {
     const content = value.content
     const revBranch = content.revisionBranch
     let kvObs
-    if (revBranch && revBranch !== kv.key) {
+    if (revBranch && revBranch !== bootKey) {
       // it's a specific revision
       // but we still use the latest prototypes!
-      console.log('request for specific revision')
+      debug('request for specific revision')
       kvObs = Value({key: bootKey, value}) // this won't change
     } else {
-      console.log('request for latest revision')
+      debug('boot: request for latest revision')
       // watch this revisionRoot
       kvObs = watchHeads(bootKey)
     }
     let timer, release
     release = watch(watchMerged(kvObs), kv => {
       if (!kv) return
-      console.log(kv.key)
+      debug('Boot message changed, revision is %s', kv.key)
       if (timer) clearTimeout(timer)
       timer = setTimeout( ()=> {
         const blob = kv.value.content.codeBlob
         const url = blob && `/blobs/get/${encodeURIComponent(blob)}?contentType=${encodeURIComponent('text/html')}`
         release()
+        debug('boot message seems to have settled, booting ....')
         cb(url ? null : new Error('malformed boot message: ' + kv.key), url)
       }, 400)
     })
@@ -48,22 +51,26 @@ exports.version = require('./package.json').version
 exports.manifest = {}
 
 exports.init = function (ssb, config) {
-  console.log('tre-boot', config.ws.port)
+  debug('ws port is %d', config.ws.port)
 
   ssb.ws.use(function (req, res, next) {
     if(!(req.method === "GET" || req.method == 'HEAD')) return next()
     const u = url.parse('http://makeurlparseright.com'+req.url)
     if (u.pathname.startsWith('/boot')) {
+      debug('request to boot: %s', req.url)
       const bootKey = decodeURIComponent(u.pathname.slice(6)) || config.boot
       if (!isMsg(bootKey)) {
+        debug('malformed /boot request: %s', req.url)
         res.statusCode = 400
         return res.end('Bad Request: Invalid boot message id syntax: ' + bootKey)
       }
       awaitStable(ssb, bootKey, (err, url) => {
         if (err) {
           res.statusCode = 503
+          debug('error retrieving boot message: %s', err.message)
           return res.end(err.message, 503)
         }
+        debug('redirecting to: %s', url)
         res.statusCode = 307
         res.setHeader('Location', url)
         res.end('Current revision at ' + url)
