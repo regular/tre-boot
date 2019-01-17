@@ -15,12 +15,11 @@ function awaitStable(ssb, bootKey, cb) {
 
   // first let's find out if bootKey refers to a specific revision
   // or a revisionRoot.
-  ssb.get(bootKey, (err, value) => {
+  // revisions.get() will wait for the message to arrive via gossip
+  ssb.revisions.get(bootKey, {meta: true}, (err, {meta, value}) => {
     if (err) return cb(err)
-    const content = value.content
-    const revBranch = content.revisionBranch
     let kvObs
-    if (revBranch && revBranch !== bootKey) {
+    if (!meta.original) {
       // it's a specific revision
       // but we still use the latest prototypes!
       debug('request for specific revision')
@@ -41,7 +40,7 @@ function awaitStable(ssb, bootKey, cb) {
         release()
         debug('boot message seems to have settled, booting ....')
         cb(url ? null : new Error('malformed boot message: ' + kv.key), url)
-      }, 400)
+      }, 1000)
     })
   })
 }
