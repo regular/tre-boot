@@ -72,6 +72,10 @@ exports.init = function (ssb, config) {
         debug('redirecting to: %s', url)
         res.statusCode = 307
         res.setHeader('Location', url)
+        res.setHeader(
+          'Set-Cookie',
+          `bootkey=${bootkey}; Path=/.trerc; SameSite=Strict;`
+        )
         res.end('Current revision at ' + url)
       })
       return
