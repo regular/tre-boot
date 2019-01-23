@@ -74,7 +74,7 @@ exports.init = function (ssb, config) {
         res.setHeader('Location', url)
         res.setHeader(
           'Set-Cookie',
-          `bootkey=${bootkey}; Path=/.trerc; SameSite=Strict;`
+          `bootkey=${bootKey}; Path=/.trerc; SameSite=Strict;`
         )
         res.end('Current revision at ' + url)
       })
