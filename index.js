@@ -55,6 +55,14 @@ exports.init = function (ssb, config) {
   ssb.ws.use(function (req, res, next) {
     if(!(req.method === "GET" || req.method == 'HEAD')) return next()
     const u = url.parse('http://makeurlparseright.com'+req.url)
+
+    if (u.pathname == '/.tre/ws-address') {
+      res.setHeader('Content-Type', 'application/json')
+      const ws_address = JSON.stringify(ssb.ws.getAddress())
+      res.end(ws_address)
+      return
+    }
+
     if (u.pathname.startsWith('/boot')) {
       debug('request to boot: %s', req.url)
       const bootKey = decodeURIComponent(u.pathname.slice(6)) || config.boot
