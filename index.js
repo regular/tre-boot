@@ -6,6 +6,95 @@ const Value = require('mutant/value')
 const watch = require('mutant/watch')
 const {isMsg} = require('ssb-ref')
 const debug = require('debug')('tre-boot')
+const crypto = require('crypto')
+
+exports.name = 'tre-boot'
+exports.version = require('./package.json').version
+exports.manifest = {}
+
+exports.init = function (ssb, config) {
+  debug('ws port is %d', config.ws.port)
+
+  const configs = {}
+  function addConfig(c) {
+    const hash = crypto.createHash('sha256')
+    hash.update(JSON.stringify(c))
+    const h = hash.digest('base64')
+    configs[h] = c
+    return h
+  }
+
+  ssb.ws.use(function (req, res, next) {
+    if(!(req.method === "GET" || req.method == 'HEAD')) return next()
+    const u = url.parse('http://makeurlparseright.com'+req.url)
+
+    if (u.pathname == '/.tre/ws-address') {
+      res.setHeader('Content-Type', 'application/json')
+      const ws_address = JSON.stringify(ssb.ws.getAddress())
+      res.end(ws_address)
+      return
+    }
+
+    if (u.pathname.startsWith('/boot')) {
+      debug('request to boot: %s', req.url)
+      const bootKey = decodeURIComponent(u.pathname.slice(6)) || config.boot
+      if (!isMsg(bootKey)) {
+        debug('malformed /boot request: %s', req.url)
+        res.statusCode = 400
+        return res.end('Bad Request: Invalid boot message id syntax: ' + bootKey)
+      }
+      awaitStable(ssb, bootKey, (err, result) => {
+        if (err) {
+          res.statusCode = 503
+          debug('error retrieving boot message: %s', err.message)
+          return res.end(err.message, 503)
+        }
+        const {url, kv} = result
+        debug('redirecting to: %s', url)
+        res.statusCode = 307
+        res.setHeader('Location', url)
+        const c = Object.assign({},
+          kv.value.content.config || {}, {
+          caps: config.caps, // TODO
+          bootMsgRevision: kv.key
+        })
+        res.setHeader(
+          'Set-Cookie',
+          `config=${encodeURIComponent(addConfig(c))}; Path=/.trerc; SameSite=Strict`
+        )
+        res.end('Current revision at ' + url)
+      })
+      return
+    }
+    if (u.pathname == '/.trerc') {
+      debug('request for config %O', req.headers)
+      const cookie = req.headers.cookie
+      const cookies = cookie && cookie.split(';') || []
+      const jar = {}
+      cookies.forEach(c => {
+        c.replace(/([^=]*)=(.*)/, (_, key, value) => jar[key] = value)
+      })
+      const {config} = jar
+      if (!config) {
+        debug('no config cookie. %O', cookie)
+        res.statusCode = 400
+        return res.end('bootKey cookie required')
+      }
+      debug('config cookie is %s', config)
+      const c = configs[decodeURIComponent(config)]
+      if (!c) {
+        res.statusCode = 404
+        return res.end('Config not found')
+      }
+      res.statusCode = 200
+      res.end(JSON.stringify(c))
+      return
+    }
+    next()
+  })
+}
+
+// --
 
 function awaitStable(ssb, bootKey, cb) {
   const watchMerged = WatchMerged(ssb)
@@ -39,84 +128,9 @@ function awaitStable(ssb, bootKey, cb) {
         const url = blob && `/blobs/get/${encodeURIComponent(blob)}?contentType=${encodeURIComponent('text/html')}`
         release()
         debug('boot message seems to have settled, booting ....')
-        cb(url ? null : new Error('malformed boot message: ' + kv.key), url)
+        cb(url ? null : new Error('malformed boot message: ' + kv.key), {kv, url})
       }, 1000)
     })
   })
 }
 
-exports.name = 'tre-boot'
-exports.version = require('./package.json').version
-exports.manifest = {}
-
-exports.init = function (ssb, config) {
-  debug('ws port is %d', config.ws.port)
-
-  ssb.ws.use(function (req, res, next) {
-    if(!(req.method === "GET" || req.method == 'HEAD')) return next()
-    const u = url.parse('http://makeurlparseright.com'+req.url)
-
-    if (u.pathname == '/.tre/ws-address') {
-      res.setHeader('Content-Type', 'application/json')
-      const ws_address = JSON.stringify(ssb.ws.getAddress())
-      res.end(ws_address)
-      return
-    }
-
-    if (u.pathname.startsWith('/boot')) {
-      debug('request to boot: %s', req.url)
-      const bootKey = decodeURIComponent(u.pathname.slice(6)) || config.boot
-      if (!isMsg(bootKey)) {
-        debug('malformed /boot request: %s', req.url)
-        res.statusCode = 400
-        return res.end('Bad Request: Invalid boot message id syntax: ' + bootKey)
-      }
-      awaitStable(ssb, bootKey, (err, url) => {
-        if (err) {
-          res.statusCode = 503
-          debug('error retrieving boot message: %s', err.message)
-          return res.end(err.message, 503)
-        }
-        debug('redirecting to: %s', url)
-        res.statusCode = 307
-        res.setHeader('Location', url)
-        res.setHeader(
-          'Set-Cookie',
-          `bootKey=${bootKey}; Path=/.trerc; SameSite=Strict`
-        )
-        res.end('Current revision at ' + url)
-      })
-      return
-    }
-    if (u.pathname == '/.trerc') {
-      debug('request for config %O', req.headers)
-      const cookie = req.headers.cookie
-      const cookies = cookie && cookie.split(';') || []
-      const jar = {}
-      cookies.forEach(c => {
-        c.replace(/([^=]*)=(.*)/, (_, key, value) => jar[key] = value)
-      })
-      const {bootKey} = jar
-      if (!bootKey) {
-        debug('no bootKey cookie. %O', cookie)
-        res.statusCode = 400
-        return res.end('bootKey cookie required')
-      }
-      debug('bootKey cookie is %s', bootKey)
-      ssb.revisions.getLatestRevision(bootKey, (err, kv) => {
-        if (err) {
-          res.statusCode = 503
-          return res.end(err.message)
-        }
-        const bootConfig = kv.value.content.config || {}
-        Object.assign(bootConfig, {
-          caps: config.caps // TODO
-        })
-        res.statusCode = 200
-        res.end(JSON.stringify(bootConfig))
-      })
-      return
-    }
-    next()
-  })
-}
