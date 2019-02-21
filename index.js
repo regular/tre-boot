@@ -51,8 +51,11 @@ exports.init = function (ssb, config) {
         }
         const {url, kv} = result
         debug('redirecting to: %s', url)
-        res.statusCode = 307
+        //res.statusCode = 307
+        res.statusCode = 301
         res.setHeader('Location', url)
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0')
+        res.setHeader('Expires', new Date().toUTCString())
         const c = Object.assign({},
           kv.value.content.config || {}, {
           caps: config.caps, // TODO
