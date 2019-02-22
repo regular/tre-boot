@@ -10,7 +10,9 @@ const crypto = require('crypto')
 
 exports.name = 'tre-boot'
 exports.version = require('./package.json').version
-exports.manifest = {}
+exports.manifest = {
+  url: 'sync'
+}
 
 exports.init = function (ssb, config) {
   debug('ws port is %d', config.ws.port)
@@ -95,6 +97,13 @@ exports.init = function (ssb, config) {
     }
     next()
   })
+  return {
+    url: function() {
+      const host = config.host || 'localhost'
+      const port = config.ws.port
+      return `http://${host}:${port}/boot`
+    }
+  }
 }
 
 // --
