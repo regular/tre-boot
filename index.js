@@ -102,7 +102,19 @@ exports.init = function (ssb, config) {
       const host = config.host || 'localhost'
       const port = config.ws.port
       return `http://${host}:${port}/boot`
+    },
+    getWebApp(bootKey, cb) {
+      if (typeof bootKey == 'function') {
+        cb = bootKey
+        bootKey = null
+      }
+      bootKey = bootKey|| config.boot
+      if (!isMsg(bootKey)) {
+        return cb(new Error('Malformed bootKey: ' + bootKey))
+      }
+      awaitStable(ssb, bootKey, cb)
     }
+
   }
 }
 
