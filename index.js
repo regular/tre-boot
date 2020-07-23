@@ -124,7 +124,7 @@ function awaitStable(ssb, bootKey, cb) {
   const watchMerged = WatchMerged(ssb)
   const watchHeads = WatchHeads(ssb)
 
-  debug(`bootKey: "${bootKey}"`)
+  debug('bootKey: "%s"', bootKey)
 
   // first let's find out if bootKey refers to a specific revision
   // or a revisionRoot.
